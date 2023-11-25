@@ -1,0 +1,78 @@
+import cv2
+import pyttsx3
+import threading
+import time
+from tkinter import * 
+
+status_list = [None, None]
+
+# Initialize the pyttsx3 engine
+engine_lock = threading.Lock()
+alarm_sound = pyttsx3.init()
+voices = alarm_sound.getProperty('voices')
+alarm_sound.setProperty('voice', voices[1].id)
+alarm_sound.setProperty('rate', 150)
+
+#Alarm and alert to
+def voice_alarm(status):
+    with engine_lock:
+        if status > 0:
+            alarm_sound.say("Person is moving")
+        else:
+            alarm_sound.say("Person is still")
+        alarm_sound.runAndWait()
+def main():
+    video = cv2.VideoCapture(0)
+    initial_frame = None
+    # Introduce a delay in seconds (adjust as needed)
+    delay = 0.5
+    while True:
+        time.sleep(delay) # Introduce delay to control the frame processing rate
+        check, frame = video.read()
+        frame = cv2.flip(frame, 1)
+        status = 0
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_frame = cv2.GaussianBlur(gray_frame, (25, 25), 0)
+        blur_frame = cv2.blur(gray_frame, (5, 5))
+        if initial_frame is None:
+            initial_frame = blur_frame
+            continue
+        delta_frame = cv2.absdiff(initial_frame, blur_frame)
+        threshold_frame = cv2.threshold(delta_frame, 35, 255, cv2.THRESH_BINARY)[1]
+        (contours, _) = cv2.findContours(threshold_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for c in contours:
+            if cv2.contourArea(c) < 5000:
+                continue
+            status += 1
+            (x, y, w, h) = cv2.boundingRect(c)
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 1)
+        status_list.append(status)
+            # Check for a change in status before calling voice_alarm
+        if status_list[-1] != status_list[-2]:
+            voice_alarm(status)
+        cv2.imshow('motion detector', frame)
+        key = cv2.waitKey(1)
+        if key == ord('q'):
+            break # Break out of the main loop when 'q' is pressed
+    video.release()
+    cv2.destroyAllWindows()
+
+root= Tk()
+
+canvas1 = Canvas(root, width = 800, height = 800, bg="red")
+canvas1.pack()
+
+label1 = Label(root, text=' Motion Detection ', bg="blue",font="36")
+canvas1.create_window(400, 100, window=label1)
+
+button1 = Button (root, text='Start', command=main , bg='blue',font='26')
+canvas1.create_window(400,250, window=button1)
+
+img = PhotoImage(file="C:/Users/SAI KAUSHIK/Downloads/Motion Detection copy.png")
+canvas1.create_image(180,300, anchor=NW, image=img)
+
+label2 = Button(root, text='Press q to quit ', bg='light blue')
+canvas1.create_window(400, 180, window=label2)
+
+root.mainloop()
